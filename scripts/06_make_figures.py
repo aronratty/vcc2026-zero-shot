@@ -1,7 +1,4 @@
-"""Render the three small docs/figures PNGs from a LOLO report
-(scripts/03_fit_lolo.py's output): the lambda curve, the neighbor-bin CI
-plot, and the ablation bar chart.
-"""
+"""Render docs/figures PNGs from scripts/03_fit_lolo.py's report JSON."""
 
 from __future__ import annotations
 
@@ -17,6 +14,7 @@ import numpy as np
 
 
 def plot_lambda_curve(curve: list[dict], out_path: Path) -> None:
+    """Plot lambda (transfer weight) against perturbation strength bin."""
     labels = [f"{int(r['lo'])}-{'inf' if r['hi'] == float('inf') else int(r['hi'])}" for r in curve]
     values = [r["lambda_mean"] for r in curve]
     fig, ax = plt.subplots(figsize=(6, 3.2))
@@ -32,6 +30,7 @@ def plot_lambda_curve(curve: list[dict], out_path: Path) -> None:
 
 
 def plot_neighbor_bins(bin_gate: list[dict], out_path: Path) -> None:
+    """Plot the neighbor-vs-control delta difference with its 95% CI, per bin and line."""
     bins = sorted({row["bin"] for row in bin_gate}, key=lambda b: int(b.split("-")[0]))
     fig, ax = plt.subplots(figsize=(6, 3.2))
     for i, line in enumerate(["HCT116", "HEK293T"]):
@@ -55,11 +54,7 @@ def plot_neighbor_bins(bin_gate: list[dict], out_path: Path) -> None:
 
 
 def plot_ablation(combined_mean: dict, out_path: Path) -> None:
-    """v2/+A1/+A2/+A1+A2, all scored on the same shared_with_tss subset
-    (benchmark.score_combined_direction) — the only apples-to-apples
-    comparison across variants (A1 and A2's own individual gate tests use
-    different target populations and are not directly comparable to each
-    other; see README "Validation")."""
+    """Bar-chart v2/+A1/+A2/+A1+A2 MAE and sign agreement on the same target subset."""
     variants = ["v2", "+A1 (ships)", "+A2 (dropped)", "+A1+A2"]
     keys = ["v2", "a1", "a2", "a1_a2"]
     colors = ["#718096", "#2f855a", "#c53030", "#718096"]
@@ -79,7 +74,29 @@ def plot_ablation(combined_mean: dict, out_path: Path) -> None:
     plt.close(fig)
 
 
+def plot_model_terms(out_path: Path) -> None:
+    """Waterfall-plot one illustrative gene's cumulative g + lambda*s + A1 delta."""
+    labels = ["start", "g\n(generic)", "+ lambda*s\n(specific transfer)", "+ A1\n(neighbor silencing)"]
+    steps = [0.0, -0.003, -0.02, -0.033]
+    cumulative = np.cumsum(steps)
+    fig, ax = plt.subplots(figsize=(6, 3.4))
+    bottoms = [0] + list(cumulative[:-1])
+    colors = ["#a0aec0", "#2b6cb0", "#2f855a", "#c53030"]
+    ax.bar(labels, steps, bottom=bottoms, color=colors)
+    for i, (b, s) in enumerate(zip(bottoms, steps)):
+        if i > 0:
+            ax.text(i, b + s / 2, f"{s:+.3f}", ha="center", va="center", fontsize=8, color="white")
+    ax.axhline(0, color="black", linewidth=0.8)
+    ax.set_ylim(cumulative.min() * 1.25, 0.01)
+    ax.set_ylabel("PIE log1p delta (illustrative values)")
+    ax.set_title("Additive model terms for one example gene")
+    fig.tight_layout()
+    fig.savefig(out_path, dpi=150)
+    plt.close(fig)
+
+
 def main() -> None:
+    """Generate all docs/figures PNGs from a LOLO report."""
     parser = argparse.ArgumentParser()
     parser.add_argument("--report", default="out/lolo_report.json")
     parser.add_argument("--out-dir", default="docs/figures")
@@ -90,6 +107,7 @@ def main() -> None:
     plot_lambda_curve(report["lambda_curve"], out_dir / "lambda_curve.png")
     plot_neighbor_bins(report["neighbor_bin_gate"], out_dir / "a1_neighbor_bins.png")
     plot_ablation(report["combined_ablation"]["mean_across_4_cells"], out_dir / "ablation_chart.png")
+    plot_model_terms(out_dir / "model_terms_example.png")
     print(f"wrote figures to {out_dir}/")
 
 

@@ -1,18 +1,7 @@
 """Delta (PIE log1p space) -> count-space fold change -> integer counts.
 
-PIE's delta is a difference in log1p(CP10k)-normalized space, not a count
-fold change — `exp(delta)` as a count ratio understates every change for
-low/medium-expression genes (Jensen's inequality: `expm1(mean(log1p(x)))`
-is below the mean count-scale expression in general). The correct
-count-space fold change, given a context's own control mean `m_ctx`, is:
-
-    fc = expm1(m_ctx + delta) / expm1(m_ctx)
-
-Non-target genes below a CP10k floor keep fc=1 (too sparse to trust);
-other non-target fold changes are clipped to [floor, cap]. Every target
-gene uses the fixed challenge prior `target_fc` exactly (0.10 by default;
-Arc's disclosed >=80% guide-selection rule, not fit locally — see README
-"What's learned vs fixed").
+Uses `fc = expm1(m_ctx + delta) / expm1(m_ctx)`, not a naive `exp(delta)`
+(see README "The decode fix" for why that naive version is wrong).
 """
 
 from __future__ import annotations
@@ -44,6 +33,7 @@ def delta_to_fc(
     non_target_floor: float = 0.05,
     cap: float = 20.0,
 ) -> np.ndarray:
+    """Convert each gene's delta to a count-space fold change, overriding the target gene."""
     mu = np.expm1(m_ctx.astype(np.float64))
     fc = np.ones(delta.shape[0], dtype=np.float64)
     usable = mu >= mu_floor
@@ -57,7 +47,7 @@ def delta_to_fc(
 def decode_sparse(
     control_rows: sparse.csr_matrix, fc: np.ndarray, rng: np.random.Generator
 ) -> sparse.csr_matrix:
-    """fc<1: Binomial(count, fc) thinning. fc>1: count + Poisson(count*(fc-1))."""
+    """Decode one block of control cells into perturbed counts via Binomial/Poisson resampling."""
     out = control_rows.tocsr(copy=True)
     if not np.issubdtype(out.data.dtype, np.integer):
         out.data = np.rint(out.data).astype(np.int64)
@@ -86,9 +76,7 @@ def decode_context(
     mu_floor: float = 0.01,
     verbose: bool = True,
 ):
-    """Decode every target's predicted cells for one context. Yields
-    (target, decoded_csr_block, obs_rows) per target, streamed to keep
-    memory bounded for 300 targets x 18,533 genes."""
+    """Yield each target's decoded cell block for one context, one target at a time."""
     import anndata as ad
 
     controls = ad.read_h5ad(control_h5ad_path, backed="r")

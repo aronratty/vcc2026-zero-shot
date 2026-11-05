@@ -1,13 +1,6 @@
-"""Build predicted deltas for the official targets and decode them into a
-submission-ready AnnData of raw integer counts.
+"""Build predicted deltas and decode them into a submission-ready AnnData of raw counts.
 
-    python scripts/04_predict.py --contexts D,E,F
-    python scripts/04_predict.py --contexts D --targets ABCG2,TP53 \
-        --cells-per-pert 20 --output out/subset.h5ad
-
-The --targets/--cells-per-pert overrides exist for the "prove nothing
-broke" subset check in README "Validation" — they are not used for the
-real submission.
+python scripts/04_predict.py --contexts D,E,F
 """
 
 from __future__ import annotations
@@ -24,6 +17,7 @@ from vcc_model import data, decode, model, reference
 
 
 def main() -> None:
+    """Build the model's predicted deltas, decode them, and write a submission h5ad."""
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", default="config.yaml")
     parser.add_argument("--contexts", required=True, help="comma-separated, e.g. D,E,F")

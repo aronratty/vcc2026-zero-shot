@@ -1,11 +1,4 @@
-"""Restrict the raw Replogle K562 GWPS table to the challenge gene axis and
-save a compact NPZ (effect matrix, challenge-gene row indices, target
-names) — the format data.load_k562_gwps() reads.
-
-The X-Atlas/Orion cache (paths.xatlas_cache) is expected pre-built in its
-compact per-perturbation-delta form (see scripts/01's printed
-instructions); there is nothing further to build for it here.
-"""
+"""Restrict the raw Replogle K562 GWPS table to the challenge gene axis."""
 
 from __future__ import annotations
 
@@ -20,6 +13,7 @@ import yaml
 
 
 def read_gene_column(path: Path) -> list[str]:
+    """Read a one-column gene/target CSV, dropping its header if it has one."""
     with open(path) as f:
         rows = [r[0].strip() for r in csv.reader(f) if r and r[0].strip()]
     return rows[1:] if rows and rows[0].lower() in {"gene_name", "target_gene", "gene"} else rows
@@ -28,6 +22,7 @@ def read_gene_column(path: Path) -> list[str]:
 def build_k562_compact(
     raw_path: Path, challenge_genes_path: Path, pert_counts_paths: list[Path], out_path: Path
 ) -> dict:
+    """Parse the raw K562 GWPS table and save a compact, challenge-axis-restricted NPZ."""
     challenge = read_gene_column(challenge_genes_path)
     gene_index = {gene: i for i, gene in enumerate(challenge)}
     wanted: set[str] = set()
@@ -74,6 +69,7 @@ def build_k562_compact(
 
 
 def main() -> None:
+    """Build the compact K562 NPZ from config.yaml's paths, unless it already exists."""
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", default="config.yaml")
     args = parser.parse_args()

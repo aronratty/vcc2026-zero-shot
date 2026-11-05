@@ -1,9 +1,4 @@
-"""Submission integrity checks: shape, labels, counts, and target-gene ratio.
-
-These are independent sanity checks on a decoded prediction file, not a
-biological validation — there is no local D/E/F ground truth to validate
-against (see METHODS.md "Local-test limitations").
-"""
+"""Submission integrity checks: shape, labels, counts, and target-gene ratio."""
 
 from __future__ import annotations
 
@@ -18,6 +13,7 @@ import pandas as pd
 def label_integrity(
     h5ad_path: str | Path, expected_contexts: set[str], cells_per_pert: int = 400
 ) -> dict[str, Any]:
+    """Check contexts, cell counts per group, and that no non-targeting label leaked in."""
     a = ad.read_h5ad(h5ad_path, backed="r")
     obs = a.obs
     counts = obs.groupby(["context", "target_gene"], observed=True).size()
@@ -36,6 +32,7 @@ def label_integrity(
 def nonneg_integer_counts_sampled(
     h5ad_path: str | Path, n_blocks: int = 72, block_size: int = 5000
 ) -> dict[str, Any]:
+    """Sample row blocks and check counts are nonnegative integers with no empty cells."""
     a = ad.read_h5ad(h5ad_path, backed="r")
     scan_starts = np.linspace(0, a.n_obs - block_size, n_blocks, dtype=int)
     min_v, max_v, non_integer, zero_total, nnz = np.inf, -np.inf, 0, 0, 0
@@ -65,8 +62,7 @@ def target_gene_ratio_report(
     genes: list[str],
     cells_per_pert: int = 400,
 ) -> dict[str, Any]:
-    """Predicted/control mean-count ratio for each target's own gene, per
-    context — should land near the fixed knockdown prior (~0.10)."""
+    """Report each target's predicted/control mean-count ratio — should land near 0.10."""
     out = ad.read_h5ad(h5ad_path, backed="r")
     gidx = {g: i for i, g in enumerate(genes)}
     contexts = sorted(control_paths)

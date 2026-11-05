@@ -1,9 +1,4 @@
-"""Load challenge controls and the compact reference-dataset caches.
-
-Pure I/O: everything here reads files into arrays/dicts. Modeling logic
-(generic response, lambda transfer, knockdown prior, neighbor term) lives
-in reference.py and model.py.
-"""
+"""Pure I/O: read challenge/reference files into arrays and dicts."""
 
 from __future__ import annotations
 
@@ -18,12 +13,13 @@ import yaml
 
 
 def load_config(path: str | Path = "config.yaml") -> dict[str, Any]:
+    """Load config.yaml into a dict."""
     with open(path) as f:
         return yaml.safe_load(f)
 
 
 def read_gene_column(path: str | Path) -> list[str]:
-    """Read a headerless-or-headered single-column CSV (gene/target list)."""
+    """Read a one-column gene/target CSV, dropping its header if it has one."""
     with open(path) as f:
         rows = [r[0].strip() for r in csv.reader(f) if r and r[0].strip()]
     if rows and rows[0].lower() in {"gene_name", "target_gene", "gene"}:
@@ -32,13 +28,7 @@ def read_gene_column(path: str | Path) -> list[str]:
 
 
 def load_xatlas_cache(cache_dir: str | Path) -> dict[str, Any]:
-    """Compact PIE-processed X-Atlas/Orion cache: per-perturbation pseudobulk
-    log1p deltas on a fixed gene axis, plus per-context control means.
-
-    Expects: delta_p.npy, ctrl_means.npy, ctx_ids.npy, pert_ids.npy,
-    meta.json, gene_metadata.parquet (see README "Reproduce" for how this
-    cache is obtained — it is not committed to this repo).
-    """
+    """Load the compact X-Atlas/Orion delta/control/gene-axis cache from disk."""
     cache_dir = Path(cache_dir)
     meta = json.loads((cache_dir / "meta.json").read_text())
     gmeta = pd.read_parquet(cache_dir / "gene_metadata.parquet")
@@ -53,8 +43,7 @@ def load_xatlas_cache(cache_dir: str | Path) -> dict[str, Any]:
 
 
 def load_k562_gwps(path: str | Path) -> dict[str, Any]:
-    """Compact Replogle 2022 K562 genome-wide CRISPRi CD-coefficient matrix,
-    restricted to the challenge gene axis (see scripts/02_build_reference_effects.py)."""
+    """Load the challenge-axis-restricted K562 GWPS CD-coefficient NPZ."""
     k = np.load(path)
     return {
         "target_gene": k["target_gene"].astype(str),
@@ -64,7 +53,7 @@ def load_k562_gwps(path: str | Path) -> dict[str, Any]:
 
 
 def load_tss_table(path: str | Path) -> dict[str, tuple[str, int]]:
-    """gene_name -> (chrom, tss) from scripts/01_download_references.py's GENCODE extract."""
+    """Load the gene_name -> (chrom, tss) table GENCODE extraction produced."""
     out: dict[str, tuple[str, int]] = {}
     with open(path) as f:
         for row in csv.DictReader(f):

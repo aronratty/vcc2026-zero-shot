@@ -1,6 +1,4 @@
-"""Derive reference-line deltas, the K562 rank->magnitude map, and a
-TSS/chromosome index, from the raw caches loaded by data.py.
-"""
+"""Derive reference-line deltas, the K562 rank map, and a TSS index from data.py's raw caches."""
 
 from __future__ import annotations
 
@@ -12,13 +10,7 @@ import numpy as np
 def align_gene_axis(
     xatlas: dict[str, Any], challenge_genes: list[str]
 ) -> tuple[list[str], dict[str, list[int]]]:
-    """Intersect the PIE gene axis with the challenge gene list by symbol.
-
-    Returns (symbols, symbol_cols): symbols is the sorted intersection (the
-    axis every reference-line matrix uses below); symbol_cols maps each
-    symbol to its column index(es) in the raw PIE gene axis (for ctrl_means
-    lookups, which are indexed on the raw axis, not `symbols`).
-    """
+    """Intersect the PIE gene axis with the challenge gene list by symbol."""
     gidx = {g: i for i, g in enumerate(challenge_genes)}
     gmeta = xatlas["gene_metadata"]
     ens_to_symbol = dict(zip(gmeta.ensembl_id, gmeta.gene_name))
@@ -34,9 +26,7 @@ def align_gene_axis(
 def load_reference_line(
     xatlas: dict[str, Any], context_name: str, cols: np.ndarray
 ) -> tuple[list[str], np.ndarray]:
-    """Per-perturbation pseudobulk delta matrix for one reference cell line
-    (e.g. "hct116" or "hek293t"), restricted to the aligned `cols` axis.
-    """
+    """Build one reference line's per-perturbation delta matrix on the aligned gene axis."""
     meta = xatlas["meta"]
     inv = {v: k for k, v in meta["pert_to_id"].items()}
     cid = meta["context_to_id"][context_name]
@@ -56,8 +46,7 @@ def load_reference_line(
 def control_expression(
     xatlas: dict[str, Any], symbols: list[str], symbol_cols: dict[str, list[int]]
 ) -> np.ndarray:
-    """Mean log1p(CP10k) control expression per symbol, averaged over the
-    two reference lines (ctrl_means rows 0 and 1 in the PIE cache)."""
+    """Mean log1p(CP10k) control expression per symbol, averaged over the two reference lines."""
     ctrl = xatlas["ctrl_means"]
     return np.asarray(
         [float(np.mean([ctrl[0, symbol_cols[s][0]], ctrl[1, symbol_cols[s][0]]])) for s in symbols],
@@ -66,15 +55,7 @@ def control_expression(
 
 
 class K562QuantileMap:
-    """Signed-rank quantile map from K562 CD-coefficient magnitude to the
-    HCT116 compact-delta magnitude scale, fit on shared targets.
-
-    K562's processed values are CD coefficients (a characteristic-direction
-    vector vs. controls), not log1p deltas — their genome-wide magnitude
-    scale does not transfer directly (METHODS.md), so only the *rank* of a
-    K562 target's effect per gene is used; the magnitude is remapped onto
-    HCT116's own delta distribution on the genes the two share.
-    """
+    """Remaps K562's CD-coefficient rank onto HCT116's delta-magnitude scale."""
 
     def __init__(
         self,
@@ -84,6 +65,7 @@ class K562QuantileMap:
         H: np.ndarray,
         h_idx: dict[str, int],
     ):
+        """Fit the rank->magnitude map from HCT116 targets shared with K562."""
         k_gene_names = [challenge_genes[i] for i in k562["challenge_gene_idx"]]
         k_map = {g: i for i, g in enumerate(k_gene_names)}
         self.q_symbols = [s for s in symbols if s in k_map]
@@ -98,10 +80,11 @@ class K562QuantileMap:
         self.rank_axis = np.linspace(0.0, 1.0, len(self.rank_magnitude))
 
     def has_target(self, target: str) -> bool:
+        """True if K562 has a measured effect for this target."""
         return target in self.k_row
 
     def map_target(self, target: str, n_symbols: int) -> np.ndarray:
-        """Signed, rank-remapped K562 delta for `target`, on the `symbols` axis."""
+        """Return target's K562 delta, sign-preserved and rescaled onto HCT116's axis."""
         raw = self.k_values[self.k_row[target], self.q_k_cols].astype(np.float32)
         order = np.argsort(np.abs(raw))
         q = np.linspace(0.0, 1.0, len(raw))
@@ -114,8 +97,7 @@ class K562QuantileMap:
 
 
 def build_chrom_index(symbols: list[str], tss_table: dict[str, tuple[str, int]], ctrl_expr: np.ndarray):
-    """Per-chromosome (gene-index, tss-position, ctrl-expression) arrays for
-    the A1 genomic-neighbor lookups in model.py / benchmark.py."""
+    """Build a per-chromosome (gene index, TSS position, control expression) index."""
     by_chrom: dict[str, list[int]] = {}
     chrom: dict[str, str | None] = {}
     tss: dict[str, int | None] = {}

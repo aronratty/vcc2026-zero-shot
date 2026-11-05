@@ -1,10 +1,4 @@
-"""Run the HCT116<->HEK293T LOLO benchmark and the A1/A2 ablation gates.
-
-Reproduces the numbers in RESULTS.md "Final-day A1/A2 ablations": the
-neighbor-silencing bin statistics, the even/odd-split fit/score for A1 and
-A2 in both transfer directions, and the production lambda curve used by
-scripts/04_predict.py. Writes out/lolo_report.json.
-"""
+"""Run the HCT116<->HEK293T LOLO benchmark and the A1/A2 ablation gates (reproduces RESULTS.md)."""
 
 from __future__ import annotations
 
@@ -19,6 +13,7 @@ from vcc_model import benchmark, data, model, reference
 
 
 def main() -> None:
+    """Fit and score the lambda curve, A1, A2, and the combined ablation; write out/lolo_report.json."""
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", default="config.yaml")
     parser.add_argument("--out", default="out/lolo_report.json")

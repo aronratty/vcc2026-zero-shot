@@ -15,6 +15,7 @@ from vcc_model import checks, data
 
 
 def main() -> None:
+    """Run checks.py's integrity checks on a prediction file and print the report."""
     parser = argparse.ArgumentParser()
     parser.add_argument("h5ad_path")
     parser.add_argument("--config", default="config.yaml")

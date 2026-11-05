@@ -1,12 +1,4 @@
-"""HCT116<->HEK293T leave-one-line-out (LOLO) benchmark.
-
-Evaluates transfer on the 3,277 perturbations shared between the two
-reference lines, scored on true top-200 DE genes (MAE, sign agreement,
-top-200 overlap). New parameters are fit on an even-named half of shared
-targets and scored on the odd-named half (and vice versa, in both transfer
-directions) to avoid target-identity leakage — see RESULTS.md "Final-day
-A1/A2 ablations" for the numbers this produced.
-"""
+"""HCT116<->HEK293T leave-one-line-out (LOLO) benchmark that gates A1/A2 (see RESULTS.md)."""
 
 from __future__ import annotations
 
@@ -21,6 +13,7 @@ ALL_NEIGHBOR_BINS = [(0, 1_000), (1_000, 10_000), (10_000, 50_000), (50_000, 200
 
 
 def top200_scores(pred: np.ndarray, true: np.ndarray) -> dict[str, float]:
+    """Score a prediction against truth on the true top-200 DE genes: MAE, sign, overlap."""
     top = np.argsort(np.abs(true))[-200:]
     top_p = set(np.argsort(np.abs(pred))[-200:])
     return {
@@ -31,6 +24,7 @@ def top200_scores(pred: np.ndarray, true: np.ndarray) -> dict[str, float]:
 
 
 def bootstrap_ci(values, n_boot: int = 2000, seed: int = 2026) -> tuple[float, float]:
+    """Return a bootstrap 95% CI of the mean of `values`."""
     rng = np.random.default_rng(seed)
     values = np.asarray(values, dtype=np.float64)
     if len(values) == 0:
@@ -42,15 +36,18 @@ def bootstrap_ci(values, n_boot: int = 2000, seed: int = 2026) -> tuple[float, f
 
 
 def _aggregate_scores(rows: list[dict[str, float]]) -> dict[str, float]:
+    """Mean each score metric across a list of per-target score dicts."""
     return {k: float(np.mean([r[k] for r in rows])) for k in ["mae_top200", "sign_top200", "overlap_top200"]}
 
 
 def even_odd_split(names: list[str]) -> tuple[list[str], list[str]]:
+    """Split sorted names into alternating halves to fit on one and score on the other."""
     ordered = sorted(names)
     return ordered[0::2], ordered[1::2]
 
 
 def strength_transfer_spearman(H, E, h_idx, e_idx) -> tuple[float, float, int]:
+    """Spearman correlation of perturbation strength between the two lines — A2's go/no-go gate."""
     shared = sorted(set(h_idx) & set(e_idx))
     sh = np.array([model.strength(H[h_idx[t]]) for t in shared])
     se = np.array([model.strength(E[e_idx[t]]) for t in shared])
@@ -61,11 +58,10 @@ def strength_transfer_spearman(H, E, h_idx, e_idx) -> tuple[float, float, int]:
 def neighbor_bin_gate_stats(
     H, E, h_idx, e_idx, chrom, tss, chrom_idx, shared_with_tss, bins=ALL_NEIGHBOR_BINS
 ) -> list[dict[str, Any]]:
-    """Exploratory step: n, median delta, frac negative, and a bootstrap 95%
-    CI of the neighbor-vs-matched-control delta difference, per bin and
-    line (over ALL candidate bins, including ones that don't qualify)."""
+    """Report n, median delta, frac negative, and a bootstrap CI per TSS-distance bin and line."""
 
     def collect(matrix, idx_map):
+        """Collect paired (neighbor, matched-control) deltas per bin for one line."""
         res = {b: {"neighbor": [], "control": []} for b in bins}
         for t in shared_with_tss:
             if t not in idx_map or chrom.get(t) is None or chrom[t] not in chrom_idx:
@@ -122,6 +118,7 @@ def neighbor_bin_gate_stats(
 def _baseline_and_a1_prediction(
     src_v, true_len, g_src, g_dst, lam, kd_j, kd, bin_effects, target, chrom, tss, chrom_idx
 ):
+    """Build the g+lambda*s+KD baseline prediction and its +A1 variant for one target."""
     s = src_v - g_src
     pred = g_dst + lam * s
     if kd_j is not None:
@@ -150,6 +147,7 @@ def score_a1_direction(
     symbols,
     symbol_cols,
 ) -> dict[str, Any]:
+    """Fit A1 on fit_targets, score baseline vs +A1 on score_targets, one transfer direction."""
     bin_effects = model.fit_bin_effects_one_line(src_m, src_idx, chrom, tss, chrom_idx, fit_targets)
     base_scores, a1_scores = [], []
     for t in score_targets:
@@ -191,11 +189,7 @@ def score_combined_direction(
     symbols,
     symbol_cols,
 ) -> dict[str, Any]:
-    """v2 baseline, +A1, +A2, +A1+A2 scored on the SAME target subset
-    (shared_with_tss — A1 needs a mapped TSS, so this is the only
-    apples-to-apples population across all four variants; see RESULTS.md
-    "Combined ablation table"). A1 and A2 parameters are each fit on
-    `fit_targets` and scored on `score_targets`."""
+    """Score v2/+A1/+A2/+A1+A2 all on the same target subset, for a fair combined comparison."""
     bin_effects = model.fit_bin_effects_one_line(src_m, src_idx, chrom, tss, chrom_idx, fit_targets)
     denom = float(np.dot(g_src, g_src))
     betas_by_bin: dict[int, list[float]] = {i: [] for i in range(len(model.STRENGTH_BINS) - 1)}
@@ -212,6 +206,7 @@ def score_combined_direction(
     beta_curve = [float(np.mean(v)) if v else 1.0 for v in betas_by_bin.values()]
 
     def beta_for(s_val):
+        """Look up the A2 beta for a strength value."""
         for i in range(len(model.STRENGTH_BINS) - 1):
             if model.STRENGTH_BINS[i] <= s_val < model.STRENGTH_BINS[i + 1]:
                 return beta_curve[i]
@@ -271,6 +266,7 @@ def score_a2_direction(
     symbols,
     symbol_cols,
 ) -> dict[str, Any]:
+    """Fit A2 on fit_targets, score baseline vs +A2 on score_targets, one transfer direction."""
     denom = float(np.dot(g_src, g_src))
     betas_by_bin = {i: [] for i in range(len(model.STRENGTH_BINS) - 1)}
     for t in fit_targets:
@@ -286,6 +282,7 @@ def score_a2_direction(
     beta_curve = [float(np.mean(v)) if v else 1.0 for v in betas_by_bin.values()]
 
     def beta_for(s_val):
+        """Look up the A2 beta for a strength value."""
         for i in range(len(model.STRENGTH_BINS) - 1):
             if model.STRENGTH_BINS[i] <= s_val < model.STRENGTH_BINS[i + 1]:
                 return beta_curve[i]

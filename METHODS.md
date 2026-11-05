@@ -78,6 +78,18 @@ perturbation's own delta on its own line's `g`) and used to replace flat
 `g` with `beta(strength) * g`. **Dropped** — it improves both metrics only
 in the HEK->HCT direction and worsens both in HCT->HEK.
 
+## What's learned vs. fixed
+
+The challenge rules require disclosing non-learned components:
+
+| component | learned or fixed | source |
+|---|---|---|
+| `g` | fixed (a mean, not fit to any objective) | average over all HCT116+HEK293T perturbations |
+| `lambda(strength)` | **learned** | least-squares per strength bin, LOLO-validated |
+| `KD = 0.10` | fixed | Arc's disclosed >=80% guide-selection rule |
+| A1 bin effects | **learned**; bin inclusion is a fixed decision rule | median matched-control-adjusted delta per bin; gated by "CI excludes 0 in both lines" |
+| K562 quantile map | **learned** (rank only; magnitude source is fixed) | K562 CD-coefficient rank, remapped onto HCT116's delta scale |
+
 ## Local-test limitations
 
 There is no perturbed D/E/F ground truth available for this task, so the
@@ -85,4 +97,4 @@ real challenge-context biology and the official (and, for 2026, unpublished)
 leaderboard metric cannot be validated locally. HCT116/HEK293T LOLO is a
 same-assay transfer test between two reference lines, not a test of the
 actual zero-shot D/E/F contexts — it is the most rigorous proxy available,
-not a guarantee. See README "Limitations and next steps".
+not a guarantee. See README "Limitations".

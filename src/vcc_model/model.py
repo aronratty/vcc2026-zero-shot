@@ -1,19 +1,4 @@
-"""The structured effect model: predicted_delta = g + lambda(strength)*s + KD + A1.
-
-- g: generic response, the mean perturbation delta per reference line,
-  averaged across HCT116 and HEK293T where both exist.
-- s: the reference-line-specific delta minus g (the "specific effect").
-- lambda(strength): how much of `s` transfers to a new context, fit by
-  perturbation-strength bin on HCT116<->HEK293T held-out transfer.
-- KD: the explicit target-gene knockdown prior (decode.py enforces the
-  exact count-space fold change on top of this; the KD term here exists
-  for auditability of the PIE-log1p-space delta file).
-- A1: additive genomic-neighbor silencing (shipped; see RESULTS.md). A2
-  (strength-scaled g) was tested and dropped — not implemented here.
-
-K562-only targets (no HCT116/HEK293T reference) use a signed, rank-remapped
-CD-coefficient direction instead of `s` (reference.K562QuantileMap).
-"""
+"""The structured effect model: predicted_delta = g + lambda(strength)*s + KD + A1 (see README)."""
 
 from __future__ import annotations
 
@@ -27,10 +12,12 @@ CONTROL_DISTANCE = (1_000_000, 5_000_000)
 
 
 def strength(delta_row: np.ndarray, threshold: float = 0.1) -> int:
+    """Count genes whose |delta| exceeds the threshold — the perturbation's strength."""
     return int(np.sum(np.abs(delta_row) > threshold))
 
 
 def generic_response(H: np.ndarray, E: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Return each line's mean delta (g_h, g_e) and their average (g_common)."""
     g_h = H.mean(axis=0)
     g_e = E.mean(axis=0)
     return g_h, g_e, (g_h + g_e) / 2.0
@@ -45,11 +32,7 @@ def fit_lambda_curve(
     names_dst: list[str],
     bins: list[float] = STRENGTH_BINS,
 ) -> list[dict[str, float]]:
-    """lambda per strength bin = least-squares transfer coefficient of the
-    source line's specific effect onto the destination line's, on shared
-    perturbations. Fit on the full shared set (no held-out split) — this is
-    the production curve; benchmark.py's LOLO evaluation re-fits this on
-    train folds separately to validate it."""
+    """Fit lambda per strength bin: least-squares transfer weight of src's specific effect onto dst's."""
     shared = sorted(set(names_src) & set(names_dst))
     si = np.asarray([names_src.index(t) for t in shared])
     di = np.asarray([names_dst.index(t) for t in shared])
@@ -69,8 +52,7 @@ def fit_lambda_curve(
 
 
 def average_curves(curve_a: list[dict], curve_b: list[dict]) -> list[dict]:
-    """Average two directional lambda curves (HCT->HEK, HEK->HCT) into one
-    symmetric curve, as final_v2/v3 do."""
+    """Average two directional lambda curves into one symmetric curve."""
     return [
         {"lo": a["lo"], "hi": a["hi"], "lambda_mean": float(np.mean([a["lambda"], b["lambda"]]))}
         for a, b in zip(curve_a, curve_b)
@@ -78,6 +60,7 @@ def average_curves(curve_a: list[dict], curve_b: list[dict]) -> list[dict]:
 
 
 def lambda_for(value: float, curve: list[dict]) -> float:
+    """Look up the lambda for a strength value, falling back to the last bin above range."""
     for row in curve:
         if row["lo"] <= value < row["hi"]:
             return row["lambda_mean"]
@@ -87,8 +70,7 @@ def lambda_for(value: float, curve: list[dict]) -> float:
 def knockdown_delta(
     symbol: str, symbol_cols: dict[str, list[int]], ctrl_means: np.ndarray, target_fc: float = 0.10
 ) -> float:
-    """PIE-log1p-space delta implied by the fixed challenge knockdown prior
-    (Arc's >=80% guide-selection rule -> ~10% residual expression)."""
+    """Return the PIE-space delta implied by the fixed 0.10 knockdown prior for this gene."""
     m = float(np.mean([ctrl_means[0, symbol_cols[symbol][0]], ctrl_means[1, symbol_cols[symbol][0]]]))
     return float(np.log1p(target_fc * np.expm1(m)) - m)
 
@@ -102,10 +84,7 @@ def fit_bin_effects_one_line(
     targets: list[str],
     qualifying_bins=QUALIFYING_NEIGHBOR_BINS,
 ) -> dict[tuple[int, int], float]:
-    """Median (neighbor-gene delta minus a distance/expression-matched
-    control-gene delta) per qualifying TSS-distance bin, for one reference
-    line. Exposed separately from fit_a1_bin_effects so benchmark.py's LOLO
-    gate can fit each line/split independently."""
+    """Fit one line's median neighbor-vs-matched-control delta per TSS-distance bin."""
     per_bin: dict[tuple[int, int], list[float]] = {b: [] for b in qualifying_bins}
     for t in targets:
         if t not in idx_map or chrom.get(t) is None or chrom[t] not in chrom_idx:
@@ -146,9 +125,7 @@ def fit_a1_bin_effects(
     targets: list[str],
     qualifying_bins=QUALIFYING_NEIGHBOR_BINS,
 ) -> dict[tuple[int, int], float]:
-    """fit_bin_effects_one_line for both reference lines, averaged. Fit on
-    the full target set given (production fit; benchmark.py's LOLO gate
-    uses an even/odd split of fit_bin_effects_one_line directly)."""
+    """Fit fit_bin_effects_one_line on both reference lines and average them."""
     eff_h = fit_bin_effects_one_line(H, h_idx, chrom, tss, chrom_idx, targets, qualifying_bins)
     eff_e = fit_bin_effects_one_line(E, e_idx, chrom, tss, chrom_idx, targets, qualifying_bins)
     return {b: float(np.mean([eff_h[b], eff_e[b]])) for b in qualifying_bins}
@@ -162,8 +139,7 @@ def neighbor_delta_terms(
     bin_effects: dict[tuple[int, int], float],
     self_index: int | None,
 ) -> list[tuple[int, float]]:
-    """Additive A1 terms as (gene-index-in-`symbols`-axis, delta) pairs for
-    one target's same-chromosome neighbor genes. Never includes `self_index`."""
+    """Return (gene index, delta) pairs for one target's neighbor genes, excluding self_index."""
     c = chrom.get(target)
     if c is None or c not in chrom_idx:
         return []
@@ -200,8 +176,7 @@ def build_target_delta(
     bin_effects: dict[tuple[int, int], float],
     target_fc: float = 0.10,
 ) -> tuple[np.ndarray, bool]:
-    """Full predicted delta for one final target, on the `symbols` axis.
-    Returns (delta, has_specific_reference)."""
+    """Assemble one target's full predicted delta: g + lambda*s + KD + A1."""
     ref = np.full(len(symbols), np.nan, dtype=np.float32)
     s_value = 0
     if target in h_idx:

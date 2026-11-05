@@ -1,11 +1,4 @@
-"""Fetch/document the reference data this pipeline needs.
-
-GENCODE TSS coordinates are downloaded and extracted automatically (small,
-public, no license friction). The two Perturb-seq reference datasets are
-NOT auto-downloaded here: one needs a non-commercial-license acceptance,
-the other is a multi-hundred-MB manual pull. See README "Reproduce" for
-why, and the printed instructions below for exactly where to get them.
-"""
+"""Fetch GENCODE TSS coordinates automatically; print manual steps for the rest."""
 
 from __future__ import annotations
 
@@ -53,6 +46,7 @@ Place both at the paths config.yaml points to, then run
 
 
 def download_gencode(dest: Path) -> None:
+    """Download the GENCODE v44 basic GTF if not already present."""
     dest.parent.mkdir(parents=True, exist_ok=True)
     if dest.exists():
         print(f"already have {dest}")
@@ -62,12 +56,14 @@ def download_gencode(dest: Path) -> None:
 
 
 def extract_tss(gtf_path: Path, challenge_genes_path: Path, out_path: Path) -> int:
+    """Extract one TSS per challenge gene from the GTF, preferring canonical chromosomes."""
     with open(challenge_genes_path) as f:
         rows = [r[0].strip() for r in csv.reader(f) if r and r[0].strip()]
     challenge_genes = rows[1:] if rows and rows[0].lower() in {"gene_name", "gene"} else rows
     cset = set(challenge_genes)
 
     def is_canonical(chrom: str) -> bool:
+        """True for chr1-22/X/Y, false for scaffolds/patches."""
         return re.fullmatch(r"chr([1-9]|1[0-9]|2[0-2]|X|Y)", chrom) is not None
 
     tss_by_symbol: dict[str, tuple[str, int, str]] = {}
@@ -101,6 +97,7 @@ def extract_tss(gtf_path: Path, challenge_genes_path: Path, out_path: Path) -> i
 
 
 def main() -> None:
+    """Download GENCODE, extract TSS coordinates, and print the manual data steps."""
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", default="config.yaml")
     args = parser.parse_args()
