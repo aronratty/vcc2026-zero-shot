@@ -1,0 +1,36 @@
+# Paths and constants for the VCC 2026 zero-shot pipeline.
+# All paths are resolved relative to the repo root unless absolute.
+
+paths:
+  challenge_genes: vcc_2026_data/gene_names.csv       # 18,533-gene official order
+  pert_counts: vcc_2026_data/pert_counts.csv          # 300 official final-phase targets
+  controls_dir: vcc_2026_data                          # context_D.h5ad, context_E.h5ad, context_F.h5ad
+  xatlas_cache: reference_cache/xatlas                 # delta_p.npy, ctrl_means.npy, ctx_ids.npy, pert_ids.npy, meta.json, gene_metadata.parquet
+  k562_gwps_raw: reference_cache/replogle-k562-genomewide-full.txt.gz
+  k562_gwps_compact: reference_cache/replogle_k562_gwps_all_effects.npz
+  gencode_gtf: reference_cache/gencode.v44.basic.annotation.gtf.gz
+  tss_table: reference_cache/challenge_tss.csv
+  model_out: out/model_deltas.npz
+  predictions_out: out/predictions.h5ad
+
+contexts:
+  final: [D, E, F]
+  validation: [A, B, C]
+
+decode:
+  target_fc_prior: 0.10          # Arc's >=80% guide selection rule -> ~10% residual expression; not fit locally
+  target_fc_sensitivity: [0.05, 0.20]
+  non_target_floor: 0.05
+  non_target_cap: 20.0
+  mu_floor: 0.01                 # CP10k floor below which non-target genes are left at fc=1
+  cells_per_perturbation: 400
+  seed: 20261103
+
+lambda_curve:
+  strength_bins: [0, 5, 20, 50, 100, 200, 500, 1000, .inf]
+  strength_threshold: 0.1         # |delta| > this counts a gene as "responding" for strength
+
+a1_neighbors:
+  qualifying_bins_bp: [[0, 1000], [1000, 10000], [10000, 50000]]
+  control_distance_bp: [1000000, 5000000]
+  rejected_bin_bp: [50000, 200000]   # failed the both-lines CI-excludes-0 gate; not applied

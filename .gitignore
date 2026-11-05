@@ -1,0 +1,31 @@
+# Data and generated outputs (never committed; see README "Reproduce")
+vcc_2026_data/
+reference_cache/
+out/
+config.local_verify.yaml
+*.h5ad
+*.vcc
+*.npz
+*.npy
+*.parquet
+
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+build/
+dist/
+
+# Environments
+.venv/
+venv/
+
+# OS
+.DS_Store
+
+# Secrets
+.env
+*.env
+vcc_pat*
