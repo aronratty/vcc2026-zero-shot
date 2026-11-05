@@ -1,5 +1,9 @@
 # vcc2026-zero-shot
 
+[![CI](https://github.com/aronratty/vcc2026-zero-shot/actions/workflows/ci.yml/badge.svg)](https://github.com/aronratty/vcc2026-zero-shot/actions/workflows/ci.yml)
+![Python](https://img.shields.io/badge/python-3.11%20%7C%203.12-3776AB?logo=python&logoColor=white)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+
 A small, fully-validated statistical model for zero-shot CRISPRi response
 prediction — built for the Arc Institute Virtual Cell Challenge 2026
 (final contexts D/E/F). No deep learning, no gene graph, no fine-tuning:
